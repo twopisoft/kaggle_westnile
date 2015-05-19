@@ -22,8 +22,9 @@ def roc_area(y_true, y_pred):
     fpr, tpr, thres = metrics.roc_curve(y_true, y_pred[:,1])
     return metrics.auc(fpr, tpr)
 
-# Functions to extract month and day from dataset
-# You can also use parse_dates of Pandas.
+def create_year(x):
+    return x.split('-')[0]
+
 def create_month(x):
     return x.split('-')[1]
 
@@ -55,6 +56,7 @@ def prep_data():
     weather = weather.replace(' T', -1)
     weather = weather.replace('  T', -1)
 
+    train['year'] = train.Date.apply(create_year)
     train['month'] = train.Date.apply(create_month)
     train['day'] = train.Date.apply(create_day)
 
@@ -88,21 +90,40 @@ def prep_data():
 def train_test_data(train):
     return cross_validation.train_test_split(train,train_size=0.7,random_state=1)
 
+def train_test_data_year(train,trn_years,tst_years):
+    return train[ train['year'].isin(trn_years) ], train[ train['year'].isin(tst_years) ]
+
+def rotate(l,n):
+    return l[n:] + l[:n]
+
 def main():
     data = prep_data()
-    train,val = train_test_data(data)
 
-    labels = train.WnvPresent.values
-    train = train.drop(['WnvPresent'], axis = 1)
+    years = ['2007','2009','2011','2013']
+    avg_roc = 0.0
 
-    # GBM classifier
-    clf = ensemble.GradientBoostingClassifier(n_estimators=1000, min_samples_split=1)
-    clf.fit(train, labels)
+    for i in range(len(years)):
+        yrs = rotate(years,i)
+        trn_years = yrs[:-1]
+        tst_years = yrs[-1:]
 
-    y = val.WnvPresent.values
-    val = val.drop(['WnvPresent'], axis = 1)
-    y_pred = clf.predict_proba(val)
-    print "ROC area = {}".format(roc_area(y, y_pred))
+        train,val = train_test_data_year(data,trn_years,tst_years)
+
+        labels = train.WnvPresent.values
+        train = train.drop(['WnvPresent'], axis = 1)
+
+        # GBM classifier
+        clf = ensemble.GradientBoostingClassifier(loss='exponential', n_estimators=100, min_samples_split=1)
+        clf.fit(train, labels)
+
+        y = val.WnvPresent.values
+        val = val.drop(['WnvPresent'], axis = 1)
+        y_pred = clf.predict_proba(val)
+        roc = roc_area(y, y_pred)
+        avg_roc += roc
+        print "Train Years: {0}, Test Years = {1}, ROC area = {2}".format(trn_years,tst_years,roc_area(y, y_pred))
+
+    print "Average ROC = {}".format(avg_roc/len(years))
 
 if __name__ == "__main__":
     main()
