@@ -87,10 +87,10 @@ test = test.ix[:,(test != -1).any(axis=0)]
 #clf = ensemble.RandomForestClassifier(n_jobs=-1, n_estimators=1000, min_samples_split=1)
 
 # GBM classifier
-clf = ensemble.GradientBoostingClassifier(n_estimators=1000, min_samples_split=1)
+clf = ensemble.GradientBoostingClassifier(n_estimators=100, min_samples_split=1)
 clf.fit(train, labels)
 
 # create predictions and submission file
 predictions = clf.predict_proba(test)[:,1]
 sample['WnvPresent'] = predictions
-sample.to_csv('beat_the_benchmark.csv', index=False)
+sample.to_csv('../output/gbm_100.csv', index=False)
