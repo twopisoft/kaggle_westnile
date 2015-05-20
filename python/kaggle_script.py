@@ -57,14 +57,14 @@ def main():
     sample = pd.read_csv('../input/sampleSubmission.csv')
 
     # GBM classifier
-    clf = ensemble.GradientBoostingClassifier(loss='exponential', n_estimators=100, min_samples_split=1)
+    clf = ensemble.GradientBoostingClassifier(n_estimators=100, min_samples_split=1)
 
     clf = tune.train_classifier(clf, train, ['2007','2009','2011','2013'])
 
     # create predictions and submission file
     predictions = clf.predict_proba(test)[:,1]
     sample['WnvPresent'] = predictions
-    sample.to_csv('../output/gbm_100_exp_2.csv', index=False)
+    sample.to_csv('../output/gbm_100_2.csv', index=False)
 
 if __name__ == "__main__":
     main()
