@@ -1,22 +1,7 @@
-"""
-Beating the Benchmark
-West Nile Virus Prediction @ Kaggle
-__author__ : Abhihsek
-"""
-
 import pandas as pd
 import numpy as np
 from sklearn import ensemble, preprocessing, cross_validation
 from sklearn import metrics
-
-def train_classifier(clf, train, y):
-    y_pred = np.zeros((len(y),len(set(y))))
-    kf = cross_validation.StratifiedKFold(y, n_folds=5)
-    for trn, tst in kf:
-        X_train, X_test, y_train, y_test = train.ix[trn,:], train.ix[tst,:], y[trn], y[tst]
-        clf.fit(X_train, y_train)
-        y_pred[tst,:] = clf.predict_proba(X_test)
-    return clf
 
 def roc_area(y_true, y_pred):
     fpr, tpr, thres = metrics.roc_curve(y_true, y_pred[:,1])
@@ -31,13 +16,7 @@ def create_month(x):
 def create_day(x):
     return x.split('-')[2]
 
-def prep_data():
-    # Load dataset 
-    train = pd.read_csv('../input/train.csv')
-    weather = pd.read_csv('../input/weather.csv')
-
-    # Get labels
-    #labels = train.WnvPresent.values
+def prep_weather_data(weather):
 
     # Not using codesum for this benchmark
     weather = weather.drop('CodeSum', axis=1)
@@ -56,6 +35,10 @@ def prep_data():
     weather = weather.replace(' T', -1)
     weather = weather.replace('  T', -1)
 
+    return weather
+
+def prep_train_data(train, test, weather):
+
     train['year'] = train.Date.apply(create_year)
     train['month'] = train.Date.apply(create_month)
     train['day'] = train.Date.apply(create_day)
@@ -71,16 +54,18 @@ def prep_data():
     train = train.merge(weather, on='Date')
     train = train.drop(['Date'], axis = 1)
 
-    # Convert categorical data to numbers
     lbl = preprocessing.LabelEncoder()
-    lbl.fit(list(train['Species'].values))
+    lbl.fit(list(train['Species'].values) + list(test['Species'].values))
     train['Species'] = lbl.transform(train['Species'].values)
+    test['Species'] = lbl.transform(test['Species'].values)
 
-    lbl.fit(list(train['Street'].values))
+    lbl.fit(list(train['Street'].values) + list(test['Street'].values))
     train['Street'] = lbl.transform(train['Street'].values)
+    test['Street'] = lbl.transform(test['Street'].values)
 
-    lbl.fit(list(train['Trap'].values))
+    lbl.fit(list(train['Trap'].values) + list(test['Trap'].values))
     train['Trap'] = lbl.transform(train['Trap'].values)
+    test['Trap'] = lbl.transform(test['Trap'].values)
 
     # drop columns with -1s
     train = train.ix[:,(train != -1).any(axis=0)]
@@ -96,13 +81,12 @@ def train_test_data_year(train,trn_years,tst_years):
 def rotate(l,n):
     return l[n:] + l[:n]
 
-def main():
-    data = prep_data()
-
-    years = ['2007','2009','2011','2013']
+def train_classifier(clf, data, years):
+    
     avg_roc = 0.0
 
     for i in range(len(years)):
+    #for i in range(1):
         yrs = rotate(years,i)
         trn_years = yrs[:-1]
         tst_years = yrs[-1:]
@@ -112,18 +96,35 @@ def main():
         labels = train.WnvPresent.values
         train = train.drop(['WnvPresent'], axis = 1)
 
-        # GBM classifier
-        clf = ensemble.GradientBoostingClassifier(loss='exponential', n_estimators=100, min_samples_split=1)
         clf.fit(train, labels)
 
         y = val.WnvPresent.values
         val = val.drop(['WnvPresent'], axis = 1)
+
         y_pred = clf.predict_proba(val)
+
         roc = roc_area(y, y_pred)
         avg_roc += roc
-        print "Train Years: {0}, Test Years = {1}, ROC area = {2}".format(trn_years,tst_years,roc_area(y, y_pred))
+        print "Train Years: {0}, Test Years = {1}, ROC area = {2}".format(trn_years,tst_years,roc)
 
     print "Average ROC = {}".format(avg_roc/len(years))
+
+    return clf
+
+def main():
+
+    train_df = pd.read_csv('../input/train.csv')
+    test_df = pd.read_csv('../input/test.csv')
+    weather_df = pd.read_csv('../input/weather.csv')
+
+    weather = prep_weather_data(weather_df)
+
+    data = prep_train_data(train_df, test_df, weather)
+
+    # GBM classifier
+    clf = ensemble.GradientBoostingClassifier(loss='exponential', n_estimators=100, min_samples_split=1)
+
+    train_classifier(clf, data, ['2007','2009','2011','2013'])
 
 if __name__ == "__main__":
     main()
